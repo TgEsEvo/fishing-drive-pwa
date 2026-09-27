@@ -211,3 +211,37 @@ export function applySetupOp(setups, op) {
   }
   return sortSetups(setups);
 }
+
+// ---------- merging extra CSV sources ----------
+
+// Google Sheets may export dates as 10/1/2017 or 2017/10/01; bring them back to ISO.
+export function normalizeDate(v) {
+  const s = (v || "").trim();
+  let m = s.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(.*)$/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}${m[4].replace(/^\s+/, "T")}`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(.*)$/);
+  if (m) return `${m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}${m[4].replace(/^\s+/, "T")}`;
+  return s;
+}
+
+// Adds rows from extra CSV texts whose key is not already present. Returns { text, added }.
+export function mergeCsvTexts(mainText, extraTexts, key) {
+  const main = parseCSV(mainText);
+  const header = [...main.header];
+  const seen = new Set(main.rows.map((r) => r[key]).filter(Boolean));
+  const rows = [...main.rows];
+  let added = 0;
+  for (const text of extraTexts) {
+    const extra = parseCSV(text);
+    if (!extra.header.includes(key)) continue;
+    for (const h of extra.header) if (h && !header.includes(h)) header.push(h);
+    for (const r of extra.rows) {
+      if (!r[key] || seen.has(r[key])) continue;
+      for (const d of ["startDate", "endDate", "date"]) if (r[d]) r[d] = normalizeDate(r[d]);
+      seen.add(r[key]);
+      rows.push(r);
+      added++;
+    }
+  }
+  return { text: toCSV(header.length ? header : [key], rows), added };
+}

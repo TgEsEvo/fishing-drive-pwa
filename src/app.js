@@ -1,4 +1,4 @@
-import { parseData, serializeData, applyOp, sortTrips, uid, parseSetups, serializeSetups, applySetupOp, isSetupOp, sortSetups } from "./model.js";
+import { parseData, serializeData, applyOp, sortTrips, uid, parseSetups, serializeSetups, applySetupOp, isSetupOp, sortSetups, mergeCsvTexts } from "./model.js";
 import { GoogleDrive, MockDrive, AuthError } from "./drive.js";
 import { kv, blobs } from "./store.js";
 
@@ -141,11 +141,23 @@ async function doSync() {
   setStatus("syncing");
   try {
     await drive.locate();
-    const [tripsText, catchesText, setupsText] = await Promise.all([
+    let [tripsText, catchesText, setupsText] = await Promise.all([
       drive.readText(drive.files.trips),
       drive.readText(drive.files.catches),
       drive.readText(drive.files.setups)
     ]);
+    // one-time merge of other trips/catches files (CSV or Google Sheet) found in the folder
+    const extras = drive.extraSources || [];
+    let merged = 0;
+    if (extras.length) {
+      const texts = { trips: [], catches: [] };
+      for (const src of extras) texts[src.kind].push(await drive.readText(src.id));
+      const t = mergeCsvTexts(tripsText, texts.trips, "trip_id");
+      const c = mergeCsvTexts(catchesText, texts.catches, "catch_id");
+      tripsText = t.text;
+      catchesText = c.text;
+      merged = t.added + c.added;
+    }
     const trips = parseData(tripsText, catchesText);
     const setups = parseSetups(setupsText);
     const batch = state.queue.slice();
@@ -158,7 +170,7 @@ async function doSync() {
         applyAny(trips, setups, clone(op));
         toTrash.push(...(op.trashPhotos || []).filter((p) => !p.startsWith("local:")));
       }
-      if (batch.some((op) => !isSetupOp(op))) {
+      if (extras.length || batch.some((op) => !isSetupOp(op))) {
         const csv = serializeData(trips);
         await drive.writeText("catches", "catches.csv", csv.catches);
         await drive.writeText("trips", "trips.csv", csv.trips);
@@ -167,6 +179,16 @@ async function doSync() {
       state.queue = state.queue.slice(batch.length);
       await kv.set("queue", state.queue);
       for (const id of toTrash) drive.trash(id).catch(() => {});
+    }
+
+    if (extras.length && !batch.length) {
+      const csv = serializeData(trips);
+      await drive.writeText("catches", "catches.csv", csv.catches);
+      await drive.writeText("trips", "trips.csv", csv.trips);
+    }
+    if (extras.length) {
+      for (const src of extras) await drive.rename(src.id, `merged_${src.name}`);
+      if (merged) toast(`${merged} мөр нэгтгэлээ`);
     }
 
     // edits made while this sync was running stay queued; show them on top

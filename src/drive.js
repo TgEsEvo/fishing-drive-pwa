@@ -5,6 +5,17 @@ const UPLOAD = "https://www.googleapis.com/upload/drive/v3";
 const SCOPE = "https://www.googleapis.com/auth/drive";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const TOKEN_KEY = "fishing-drive-token";
+const SHEET_MIME = "application/vnd.google-apps.spreadsheet";
+
+// Other trips/catches files dropped in the data folder (CSV or Google Sheet) get merged
+// into trips.csv / catches.csv once, then renamed "merged_..." so they are not read again.
+export function findExtraSources(files, mainNames) {
+  return files
+    .filter((f) => !mainNames.includes(f.name) && !/^merged_/i.test(f.name))
+    .filter((f) => f.mimeType === SHEET_MIME || /\.csv$/i.test(f.name))
+    .map((f) => ({ ...f, kind: /catch/i.test(f.name) ? "catches" : /trip/i.test(f.name) ? "trips" : null }))
+    .filter((f) => f.kind);
+}
 
 export class AuthError extends Error {}
 
@@ -113,10 +124,8 @@ export class GoogleDrive {
     }
     const files = await this.list(`'${this.folderId}' in parents and trashed=false`);
     const byName = (n) => files.find((f) => f.name === n);
-    const sheet = files.find((f) => /^(trips|catches)/.test(f.name) && f.mimeType === "application/vnd.google-apps.spreadsheet");
-    if (sheet && !byName("trips.csv")) {
-      throw new Error("Drive CSV-г Google Sheet болгож хөрвүүлсэн байна. trips.csv, catches.csv-г CSV хэвээр нь upload хийнэ үү.");
-    }
+    this.mimeById = Object.fromEntries(files.map((f) => [f.id, f.mimeType]));
+    this.extraSources = findExtraSources(files, ["trips.csv", "catches.csv", "setups.csv"]);
     this.files = {
       trips: byName("trips.csv")?.id || null,
       catches: byName("catches.csv")?.id || null,
@@ -128,7 +137,18 @@ export class GoogleDrive {
 
   async readText(fileId) {
     if (!fileId) return "";
+    if (this.mimeById?.[fileId] === SHEET_MIME) {
+      return (await this.req(`${API}/files/${fileId}/export?mimeType=text/csv`)).text();
+    }
     return (await this.req(`${API}/files/${fileId}?alt=media`)).text();
+  }
+
+  async rename(fileId, name) {
+    await this.req(`${API}/files/${fileId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
   }
 
   async multipart(metadata, blob, fields = "id") {
@@ -209,7 +229,18 @@ export class MockDrive {
   async locate() {
     this.check();
     this.files = { trips: "trips.csv", catches: "catches.csv", setups: "setups.csv" };
+    const fs = this.load();
+    this.extraSources = findExtraSources(
+      Object.keys(fs).filter((k) => k !== "photos").map((k) => ({ id: k, name: k, mimeType: k.endsWith(".csv") ? "text/csv" : SHEET_MIME })),
+      ["trips.csv", "catches.csv", "setups.csv"]
+    );
     return this.files;
+  }
+  async rename(id, name) {
+    const fs = this.load();
+    fs[name] = fs[id];
+    delete fs[id];
+    this.save(fs);
   }
   async readText(id) {
     this.check();
