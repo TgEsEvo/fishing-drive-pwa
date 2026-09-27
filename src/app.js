@@ -310,6 +310,7 @@ function route() {
   if (parts[0] === "settings") return { view: "settings" };
   if (parts[0] === "new") return { view: "tripForm" };
   if (parts[0] === "setups") {
+    if (parts[1]) return { view: "setupForm", setupId: parts[1] === "new" ? null : parts[1] };
     return { view: "setups" };
   }
   if (parts[0] === "trip" && parts[1]) {
@@ -324,15 +325,13 @@ const go = (hash) => (location.hash = hash);
 
 // Background refreshes must not wipe a form the user is typing into.
 function renderIfSafe() {
-  const view = route().view;
-  // the setups page has editable text areas too
-  if (!view.endsWith("Form") && !(view === "setups" && document.activeElement?.tagName === "TEXTAREA")) render();
+  if (!route().view.endsWith("Form")) render();
 }
 
 function render() {
   const r = route();
   if (!drive && !MOCK && r.view !== "settings") return renderSetup();
-  const views = { list: renderList, trip: renderTrip, tripForm: renderTripForm, catchForm: renderCatchForm, settings: renderSettings, setups: renderSetups };
+  const views = { list: renderList, trip: renderTrip, tripForm: renderTripForm, catchForm: renderCatchForm, settings: renderSettings, setups: renderSetups, setupForm: renderSetupForm };
   views[r.view](r);
   hydratePhotos();
 }
@@ -454,7 +453,7 @@ function renderList() {
       <a class="stat-link" href="#/setups">
         <span>Миний setup-ууд</span>
         <strong>${state.setups.length}</strong>
-        <em>${esc(state.setups.slice(0, 3).map(setupTitle).join(", ") || "Шинэ setup нэмэх")} ›</em>
+        <em>${esc(state.setups.slice(0, 3).map((x) => x.name).join(", ") || "Шинэ setup нэмэх")} ›</em>
       </a>
     </section>
     <label class="search">Хайх
@@ -678,75 +677,60 @@ function renderCatchForm({ tripId, catchId }) {
   });
 }
 
-// One text per setup. Older records (name + notes + extra_setup) are shown joined.
-function setupText(x) {
-  const parts = [];
-  if (x.name && !(x.notes || "").startsWith(x.name)) parts.push(x.name);
-  if (x.notes) parts.push(x.notes);
-  if (x.addon) parts.push(x.addon);
-  return parts.join("\n");
-}
-
-function setupTitle(x) {
-  return setupText(x).split("\n").find((l) => l.trim())?.trim() || "Setup";
-}
-
 function renderSetups() {
   $app.innerHTML = `
     <a class="back" href="#/">← Жагсаалт</a>
     <section class="list-head">
       <div><small>Хэрэгсэл</small><h2>Миний setup-ууд</h2></div>
     </section>
-    <form class="card setup-new" data-setup-form="new">
-      <textarea name="text" rows="4" placeholder="Шинэ setup: саваа, ороогуур, шугам, өгөөш..." required></textarea>
-      <button class="primary" type="submit">+ Нэмэх</button>
-    </form>
+    <a class="primary big" href="#/setups/new">+ Шинэ setup</a>
     <div class="setup-list">
       ${
         state.setups.length
           ? state.setups
               .map(
                 (x) => `
-        <form class="setup-card" data-setup-form="${esc(x.id)}">
-          <textarea name="text" rows="${Math.min(12, Math.max(3, setupText(x).split("\n").length + 1))}" required>${esc(setupText(x))}</textarea>
-          <div class="setup-actions">
-            <button class="primary" type="submit" disabled>Хадгалах</button>
-            <button class="danger" type="button" data-action="deleteSetup" data-id="${esc(x.id)}">Устгах</button>
-          </div>
-        </form>`
+        <a class="setup-card" href="#/setups/${esc(x.id)}">
+          <h3>${esc(x.name || "Нэргүй setup")}</h3>
+          ${x.notes ? `<p class="notes clamp">${esc(x.notes)}</p>` : ""}
+          ${x.addon ? `<p class="addon-label">Нэмэлт setup</p><p class="notes clamp">${esc(x.addon)}</p>` : ""}
+        </a>`
               )
               .join("")
           : `<p class="empty">Одоогоор setup алга.</p>`
       }
     </div>`;
+}
 
-  for (const form of $app.querySelectorAll("[data-setup-form]")) {
-    const id = form.dataset.setupForm;
-    const area = form.querySelector("textarea");
-    const save = form.querySelector('button[type="submit"]');
-    area.addEventListener("input", () => {
-      if (id !== "new") save.disabled = area.value === area.defaultValue;
-    });
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const text = area.value.trim();
-      if (!text) return;
-      const x = id === "new" ? null : state.setups.find((s) => s.id === id);
-      const setup = {
-        id: x?.id || uid(),
-        name: text.split("\n")[0].trim().slice(0, 80),
-        notes: text,
-        addon: "",
-        createdAt: x?.createdAt || now(),
-        updatedAt: now(),
-        extra: x?.extra || {}
-      };
-      area.blur();
-      await mutate({ type: "upsertSetup", setup });
-      toast(x ? "Хадгаллаа" : "Нэмлээ");
-      renderSetups();
-    });
-  }
+function renderSetupForm({ setupId }) {
+  const x = setupId ? state.setups.find((s) => s.id === setupId) : null;
+  if (setupId && !x) return go("#/setups");
+  $app.innerHTML = `
+    <a class="back" href="#/setups">← Setup-ууд</a>
+    <form id="setupItemForm" class="card form">
+      <h2>${x ? "Setup засах" : "Шинэ setup"}</h2>
+      <label>Нэр<input name="name" required value="${esc(x?.name || "")}" placeholder="Тулын spinning, зэвэгний fly..." /></label>
+      <label>Тайлбар<textarea name="notes" rows="10" placeholder="Саваа, ороогуур, шугам, лидер, өгөөш...">${esc(x?.notes || "")}</textarea></label>
+      <label>Нэмэлт setup<textarea name="addon" rows="6" placeholder="Нөөц өгөөш, өөр шугам, туслах хэрэгсэл...">${esc(x?.addon || "")}</textarea></label>
+      <button class="primary big" type="submit">Хадгалах</button>
+      ${x ? `<button class="danger" type="button" data-action="deleteSetup" data-id="${esc(x.id)}">Setup устгах</button>` : ""}
+    </form>`;
+  $app.querySelector("#setupItemForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const setup = {
+      id: x?.id || uid(),
+      name: f.get("name").trim(),
+      notes: f.get("notes"),
+      addon: f.get("addon"),
+      createdAt: x?.createdAt || now(),
+      updatedAt: now(),
+      extra: x?.extra || {}
+    };
+    await mutate({ type: "upsertSetup", setup });
+    toast("Хадгаллаа");
+    go("#/setups");
+  });
 }
 
 function renderSettings() {
@@ -824,10 +808,10 @@ document.addEventListener("click", async (e) => {
     go("#/");
   } else if (action === "deleteSetup") {
     const x = state.setups.find((s) => s.id === btn.dataset.id);
-    if (!x || !confirm(`"${setupTitle(x)}" setup-ийг устгах уу?`)) return;
+    if (!x || !confirm(`"${x.name}" setup-ийг устгах уу?`)) return;
     await mutate({ type: "deleteSetup", id: x.id });
     toast("Устгалаа");
-    renderSetups();
+    go("#/setups");
   } else if (action === "deleteCatch") {
     const t = findTrip(btn.dataset.trip);
     const c = t?.catches.find((x) => x.id === btn.dataset.id);

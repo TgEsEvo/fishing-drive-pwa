@@ -262,12 +262,3 @@ h3 { font-size: 1.05rem; }
 .stats .wide em { font-style: normal; font-weight: 600; font-size: 0.9rem; color: var(--ink); line-height: 1.4; }
 
 .addon-label { margin: 10px 0 2px; font-size: 0.8rem; font-weight: 700; color: var(--accent); text-transform: uppercase; }
-
-.setup-new, .setup-card { display: grid; gap: 10px; }
-.setup-new textarea, .setup-card textarea {
-  width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius);
-  background: var(--surface); color: var(--ink); font: inherit; resize: vertical; min-height: 88px;
-}
-.setup-new .primary { justify-self: end; }
-.setup-actions { display: flex; justify-content: flex-end; gap: 8px; }
-.setup-actions .primary:disabled { opacity: 0.4; cursor: default; }
