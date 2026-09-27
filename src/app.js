@@ -448,7 +448,7 @@ function renderList() {
       <article class="wide">
         <span>Загасны төрөл</span>
         <strong>${species.length}</strong>
-        <em>${species.length ? species.map((x) => `${esc(x.name)} ${x.n}`).join(" · ") : "-"}</em>
+        <em>${species.length ? species.map((x) => esc(x.name)).join(" · ") : "-"}</em>
       </article>
       <a class="stat-link" href="#/setups">
         <span>Миний setup-ууд</span>
