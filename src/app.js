@@ -411,15 +411,25 @@ function tripCard(t) {
     </a>`;
 }
 
+function speciesCounts(catches) {
+  const counts = new Map();
+  for (const c of catches) {
+    const name = (c.fish || "").trim();
+    if (!name || /^тодорхойгүй$/i.test(name)) continue;
+    const key = name.toLowerCase();
+    const entry = counts.get(key) || { name, n: 0 };
+    entry.n++;
+    counts.set(key, entry);
+  }
+  return [...counts.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+}
+
 function renderList() {
   const catches = allCatches();
   const longest = Math.max(0, ...catches.map((c) => c.lengthCm || 0));
-  const stats = [
-    ["Аялал", state.trips.length],
-    ["Барьсан загас", catches.length],
-    ["Хамгийн урт", longest ? `${fmtNum(longest)} см` : "-"],
-    ["Топ өгөөш", topValue(catches.map((c) => c.lure)) || "-"]
-  ];
+  const caughtTrips = state.trips.filter((t) => t.catches.length).length;
+  const blankTrips = state.trips.length - caughtTrips;
+  const species = speciesCounts(catches);
   $app.innerHTML = `
     ${banner()}
     <section class="list-head">
@@ -428,7 +438,18 @@ function renderList() {
     </section>
     <a class="primary big" href="#/new">+ Шинэ аялал</a>
     <section class="stats">
-      ${stats.map(([l, v]) => `<article><span>${esc(l)}</span><strong>${esc(v)}</strong></article>`).join("")}
+      <article><span>Аялал</span><strong>${state.trips.length}</strong></article>
+      <article class="split">
+        <span>Загастай / Цайрсан</span>
+        <strong><b class="ok">${caughtTrips}</b><i>/</i><b class="miss">${blankTrips}</b></strong>
+      </article>
+      <article><span>Хамгийн урт</span><strong>${longest ? `${fmtNum(longest)} см` : "-"}</strong></article>
+      <article><span>Топ өгөөш</span><strong>${esc(topValue(catches.map((c) => c.lure)) || "-")}</strong></article>
+      <article class="wide">
+        <span>Загасны төрөл</span>
+        <strong>${species.length}</strong>
+        <em>${species.length ? species.map((x) => `${esc(x.name)} ${x.n}`).join(" · ") : "-"}</em>
+      </article>
       <a class="stat-link" href="#/setups">
         <span>Миний setup-ууд</span>
         <strong>${state.setups.length}</strong>

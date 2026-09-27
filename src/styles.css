@@ -251,3 +251,12 @@ h3 { font-size: 1.05rem; }
 .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--muted); }
 .stats .stat-link span { color: #fff; opacity: 0.85; }
 .form input, .form textarea, .search input { color: var(--ink); font-weight: 400; }
+
+.stats .split strong { display: flex; align-items: baseline; gap: 6px; }
+.stats .split b { font-weight: 800; }
+.stats .split .ok { color: var(--caught); }
+.stats .split .miss { color: var(--missed); }
+.stats .split i { font-style: normal; color: var(--muted); font-weight: 400; }
+.stats .wide { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+.stats .wide strong { grid-row: span 2; grid-column: 2; grid-row-start: 1; margin: 0; }
+.stats .wide em { font-style: normal; font-weight: 600; font-size: 0.9rem; color: var(--ink); line-height: 1.4; }
