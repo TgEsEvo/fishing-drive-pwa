@@ -693,6 +693,7 @@ function renderSetups() {
         <a class="setup-card" href="#/setups/${esc(x.id)}">
           <h3>${esc(x.name || "Нэргүй setup")}</h3>
           ${x.notes ? `<p class="notes clamp">${esc(x.notes)}</p>` : ""}
+          ${x.addon ? `<p class="addon-label">Нэмэлт setup</p><p class="notes clamp">${esc(x.addon)}</p>` : ""}
         </a>`
               )
               .join("")
@@ -710,6 +711,7 @@ function renderSetupForm({ setupId }) {
       <h2>${x ? "Setup засах" : "Шинэ setup"}</h2>
       <label>Нэр<input name="name" required value="${esc(x?.name || "")}" placeholder="Тулын spinning, зэвэгний fly..." /></label>
       <label>Тайлбар<textarea name="notes" rows="10" placeholder="Саваа, ороогуур, шугам, лидер, өгөөш...">${esc(x?.notes || "")}</textarea></label>
+      <label>Нэмэлт setup<textarea name="addon" rows="6" placeholder="Нөөц өгөөш, өөр шугам, туслах хэрэгсэл...">${esc(x?.addon || "")}</textarea></label>
       <button class="primary big" type="submit">Хадгалах</button>
       ${x ? `<button class="danger" type="button" data-action="deleteSetup" data-id="${esc(x.id)}">Setup устгах</button>` : ""}
     </form>`;
@@ -720,6 +722,7 @@ function renderSetupForm({ setupId }) {
       id: x?.id || uid(),
       name: f.get("name").trim(),
       notes: f.get("notes"),
+      addon: f.get("addon"),
       createdAt: x?.createdAt || now(),
       updatedAt: now(),
       extra: x?.extra || {}

@@ -169,7 +169,7 @@ export function applyOp(trips, op) {
 
 // ---------- setups (setups.csv) ----------
 
-export const SETUP_COLS = ["setup_id", "name", "notes", "createdAt", "updatedAt"];
+export const SETUP_COLS = ["setup_id", "name", "notes", "extra_setup", "createdAt", "updatedAt"];
 
 export function parseSetups(text) {
   const { header, rows } = parseCSV(text);
@@ -179,6 +179,7 @@ export function parseSetups(text) {
       id: row.setup_id || uid(),
       name: row.name || "",
       notes: row.notes || "",
+      addon: row.extra_setup || "",
       createdAt: row.createdAt || "",
       updatedAt: row.updatedAt || "",
       extra: pick(row, extras)
@@ -194,7 +195,7 @@ export function serializeSetups(setups) {
   const extras = [...new Set(setups.flatMap((s) => Object.keys(s.extra || {})))];
   const rows = [...setups]
     .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))
-    .map((s) => ({ ...s.extra, setup_id: s.id, name: s.name, notes: s.notes, createdAt: s.createdAt, updatedAt: s.updatedAt }));
+    .map((s) => ({ ...s.extra, setup_id: s.id, name: s.name, notes: s.notes, extra_setup: s.addon || "", createdAt: s.createdAt, updatedAt: s.updatedAt }));
   return toCSV([...SETUP_COLS, ...extras], rows);
 }
 
