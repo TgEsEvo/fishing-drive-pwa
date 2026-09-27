@@ -262,3 +262,9 @@ h3 { font-size: 1.05rem; }
 .stats .wide em { font-style: normal; font-weight: 600; font-size: 0.9rem; color: var(--ink); line-height: 1.4; }
 
 .addon-label { margin: 10px 0 2px; font-size: 0.8rem; font-weight: 700; color: var(--accent); text-transform: uppercase; }
+
+.setup-note { display: grid; gap: 8px; }
+.setup-note label { font-weight: 700; color: var(--muted); font-size: 0.92rem; }
+.setup-note textarea { width: 100%; min-height: 110px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font: inherit; resize: vertical; }
+.setup-note .primary { justify-self: end; }
+.setup-note .primary:disabled { opacity: 0.4; cursor: default; }

@@ -325,7 +325,9 @@ const go = (hash) => (location.hash = hash);
 
 // Background refreshes must not wipe a form the user is typing into.
 function renderIfSafe() {
-  if (!route().view.endsWith("Form")) render();
+  const view = route().view;
+  // don't wipe text being typed into the setups page note
+  if (!view.endsWith("Form") && !(view === "setups" && document.activeElement?.tagName === "TEXTAREA")) render();
 }
 
 function render() {
@@ -452,8 +454,8 @@ function renderList() {
       </article>
       <a class="stat-link" href="#/setups">
         <span>Миний setup-ууд</span>
-        <strong>${state.setups.length}</strong>
-        <em>${esc(state.setups.slice(0, 3).map((x) => x.name).join(", ") || "Шинэ setup нэмэх")} ›</em>
+        <strong>${setupItems().length}</strong>
+        <em>${esc(setupItems().slice(0, 3).map((x) => x.name).join(", ") || "Шинэ setup нэмэх")} ›</em>
       </a>
     </section>
     <label class="search">Хайх
@@ -677,17 +679,27 @@ function renderCatchForm({ tripId, catchId }) {
   });
 }
 
+// The setups page has one free-text box; it is stored as a special row in setups.csv.
+const SETUP_NOTE_ID = "_page_note";
+const setupItems = () => state.setups.filter((x) => x.id !== SETUP_NOTE_ID);
+const setupNote = () => state.setups.find((x) => x.id === SETUP_NOTE_ID);
+
 function renderSetups() {
   $app.innerHTML = `
     <a class="back" href="#/">← Жагсаалт</a>
     <section class="list-head">
       <div><small>Хэрэгсэл</small><h2>Миний setup-ууд</h2></div>
     </section>
+    <form id="setupNoteForm" class="card setup-note">
+      <label for="setupNoteText">Тэмдэглэл</label>
+      <textarea id="setupNoteText" name="text" rows="5" placeholder="Энд чөлөөтэй бичээд хадгална...">${esc(setupNote()?.notes || "")}</textarea>
+      <button class="primary" type="submit" disabled>Хадгалах</button>
+    </form>
     <a class="primary big" href="#/setups/new">+ Шинэ setup</a>
     <div class="setup-list">
       ${
-        state.setups.length
-          ? state.setups
+        setupItems().length
+          ? setupItems()
               .map(
                 (x) => `
         <a class="setup-card" href="#/setups/${esc(x.id)}">
@@ -700,10 +712,34 @@ function renderSetups() {
           : `<p class="empty">Одоогоор setup алга.</p>`
       }
     </div>`;
+
+  const form = $app.querySelector("#setupNoteForm");
+  const area = form.querySelector("textarea");
+  const save = form.querySelector("button");
+  area.addEventListener("input", () => (save.disabled = area.value === area.defaultValue));
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const old = setupNote();
+    area.blur();
+    await mutate({
+      type: "upsertSetup",
+      setup: {
+        id: SETUP_NOTE_ID,
+        name: "",
+        notes: area.value,
+        addon: "",
+        createdAt: old?.createdAt || now(),
+        updatedAt: now(),
+        extra: old?.extra || {}
+      }
+    });
+    toast("Хадгаллаа");
+    renderSetups();
+  });
 }
 
 function renderSetupForm({ setupId }) {
-  const x = setupId ? state.setups.find((s) => s.id === setupId) : null;
+  const x = setupId && setupId !== SETUP_NOTE_ID ? state.setups.find((s) => s.id === setupId) : null;
   if (setupId && !x) return go("#/setups");
   $app.innerHTML = `
     <a class="back" href="#/setups">← Setup-ууд</a>
