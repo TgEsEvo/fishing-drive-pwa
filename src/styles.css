@@ -268,3 +268,5 @@ h3 { font-size: 1.05rem; }
 .setup-note textarea { width: 100%; min-height: 110px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font: inherit; resize: vertical; }
 .setup-note .primary { justify-self: end; }
 .setup-note .primary:disabled { opacity: 0.4; cursor: default; }
+
+.setup-list + .setup-note { margin-top: 18px; }

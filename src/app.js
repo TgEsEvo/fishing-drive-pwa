@@ -690,11 +690,6 @@ function renderSetups() {
     <section class="list-head">
       <div><small>Хэрэгсэл</small><h2>Миний setup-ууд</h2></div>
     </section>
-    <form id="setupNoteForm" class="card setup-note">
-      <label for="setupNoteText">Тэмдэглэл</label>
-      <textarea id="setupNoteText" name="text" rows="5" placeholder="Энд чөлөөтэй бичээд хадгална...">${esc(setupNote()?.notes || "")}</textarea>
-      <button class="primary" type="submit" disabled>Хадгалах</button>
-    </form>
     <a class="primary big" href="#/setups/new">+ Шинэ setup</a>
     <div class="setup-list">
       ${
@@ -711,7 +706,12 @@ function renderSetups() {
               .join("")
           : `<p class="empty">Одоогоор setup алга.</p>`
       }
-    </div>`;
+    </div>
+    <form id="setupNoteForm" class="card setup-note">
+      <label for="setupNoteText">Тэмдэглэл</label>
+      <textarea id="setupNoteText" name="text" rows="5" placeholder="Энд чөлөөтэй бичээд хадгална...">${esc(setupNote()?.notes || "")}</textarea>
+      <button class="primary" type="submit" disabled>Хадгалах</button>
+    </form>`;
 
   const form = $app.querySelector("#setupNoteForm");
   const area = form.querySelector("textarea");
