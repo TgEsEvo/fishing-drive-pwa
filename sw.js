@@ -1,5 +1,5 @@
 // App-shell cache so the app opens offline. Drive/Google requests always go to the network.
-const CACHE = "fishing-drive-v1";
+const CACHE = "fishing-drive-v2";
 const SHELL = [
   "./",
   "index.html",

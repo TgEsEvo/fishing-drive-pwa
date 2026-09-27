@@ -1,4 +1,4 @@
-import { parseData, serializeData, applyOp, sortTrips, uid } from "./model.js";
+import { parseData, serializeData, applyOp, sortTrips, uid, parseSetups, serializeSetups, applySetupOp, isSetupOp, sortSetups } from "./model.js";
 import { GoogleDrive, MockDrive, AuthError } from "./drive.js";
 import { kv, blobs } from "./store.js";
 
@@ -49,6 +49,7 @@ const STATUS_TEXT = {
 
 const state = {
   trips: [],
+  setups: [],
   queue: [],
   status: "idle",
   error: "",
@@ -140,8 +141,13 @@ async function doSync() {
   setStatus("syncing");
   try {
     await drive.locate();
-    const [tripsText, catchesText] = await Promise.all([drive.readText(drive.files.trips), drive.readText(drive.files.catches)]);
+    const [tripsText, catchesText, setupsText] = await Promise.all([
+      drive.readText(drive.files.trips),
+      drive.readText(drive.files.catches),
+      drive.readText(drive.files.setups)
+    ]);
     const trips = parseData(tripsText, catchesText);
+    const setups = parseSetups(setupsText);
     const batch = state.queue.slice();
 
     if (batch.length) {
@@ -149,22 +155,27 @@ async function doSync() {
       const toTrash = [];
       for (const op of batch) {
         await uploadOpPhotos(op, photoMap);
-        applyOp(trips, clone(op));
+        applyAny(trips, setups, clone(op));
         toTrash.push(...(op.trashPhotos || []).filter((p) => !p.startsWith("local:")));
       }
-      const csv = serializeData(trips);
-      await drive.writeText("catches", "catches.csv", csv.catches);
-      await drive.writeText("trips", "trips.csv", csv.trips);
+      if (batch.some((op) => !isSetupOp(op))) {
+        const csv = serializeData(trips);
+        await drive.writeText("catches", "catches.csv", csv.catches);
+        await drive.writeText("trips", "trips.csv", csv.trips);
+      }
+      if (batch.some(isSetupOp)) await drive.writeText("setups", "setups.csv", serializeSetups(setups));
       state.queue = state.queue.slice(batch.length);
       await kv.set("queue", state.queue);
       for (const id of toTrash) drive.trash(id).catch(() => {});
     }
 
     // edits made while this sync was running stay queued; show them on top
-    for (const op of state.queue) applyOp(trips, clone(op));
+    for (const op of state.queue) applyAny(trips, setups, clone(op));
     state.trips = trips;
+    state.setups = setups;
     state.lastSync = Date.now();
     await kv.set("trips", trips);
+    await kv.set("setups", setups);
     await kv.set("lastSync", state.lastSync);
     setStatus("online");
     renderIfSafe();
@@ -205,11 +216,17 @@ async function uploadOpPhotos(op, photoMap) {
   op.catch.photos = out;
 }
 
+function applyAny(trips, setups, op) {
+  if (isSetupOp(op)) applySetupOp(setups, op);
+  else applyOp(trips, op);
+}
+
 async function mutate(op) {
-  applyOp(state.trips, clone(op));
+  applyAny(state.trips, state.setups, clone(op));
   state.queue.push(op);
   await kv.set("queue", state.queue);
   await kv.set("trips", state.trips);
+  await kv.set("setups", state.setups);
   renderPill();
   sync();
 }
@@ -270,6 +287,10 @@ function route() {
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[0] === "settings") return { view: "settings" };
   if (parts[0] === "new") return { view: "tripForm" };
+  if (parts[0] === "setups") {
+    if (parts[1]) return { view: "setupForm", setupId: parts[1] === "new" ? null : parts[1] };
+    return { view: "setups" };
+  }
   if (parts[0] === "trip" && parts[1]) {
     if (parts[2] === "edit") return { view: "tripForm", tripId: parts[1] };
     if (parts[2] === "catch") return { view: "catchForm", tripId: parts[1], catchId: parts[3] === "new" ? null : parts[3] };
@@ -288,7 +309,7 @@ function renderIfSafe() {
 function render() {
   const r = route();
   if (!drive && !MOCK && r.view !== "settings") return renderSetup();
-  const views = { list: renderList, trip: renderTrip, tripForm: renderTripForm, catchForm: renderCatchForm, settings: renderSettings };
+  const views = { list: renderList, trip: renderTrip, tripForm: renderTripForm, catchForm: renderCatchForm, settings: renderSettings, setups: renderSetups, setupForm: renderSetupForm };
   views[r.view](r);
   hydratePhotos();
 }
@@ -384,7 +405,14 @@ function renderList() {
       <a class="icon-btn" href="#/settings" aria-label="Тохиргоо">⚙︎</a>
     </section>
     <a class="primary big" href="#/new">+ Шинэ аялал</a>
-    <section class="stats">${stats.map(([l, v]) => `<article><span>${esc(l)}</span><strong>${esc(v)}</strong></article>`).join("")}</section>
+    <section class="stats">
+      ${stats.map(([l, v]) => `<article><span>${esc(l)}</span><strong>${esc(v)}</strong></article>`).join("")}
+      <a class="stat-link" href="#/setups">
+        <span>Миний setup-ууд</span>
+        <strong>${state.setups.length}</strong>
+        <em>${esc(state.setups.slice(0, 3).map((x) => x.name).join(", ") || "Шинэ setup нэмэх")} ›</em>
+      </a>
+    </section>
     <label class="search">Хайх
       <input id="searchInput" type="search" value="${esc(state.search)}" placeholder="Газар, хүн, загас, өгөөш..." autocomplete="off" />
     </label>
@@ -606,6 +634,59 @@ function renderCatchForm({ tripId, catchId }) {
   });
 }
 
+function renderSetups() {
+  $app.innerHTML = `
+    <a class="back" href="#/">← Жагсаалт</a>
+    <section class="list-head">
+      <div><small>Хэрэгсэл</small><h2>Миний setup-ууд</h2></div>
+    </section>
+    <a class="primary big" href="#/setups/new">+ Шинэ setup</a>
+    <div class="setup-list">
+      ${
+        state.setups.length
+          ? state.setups
+              .map(
+                (x) => `
+        <a class="setup-card" href="#/setups/${esc(x.id)}">
+          <h3>${esc(x.name || "Нэргүй setup")}</h3>
+          ${x.notes ? `<p class="notes clamp">${esc(x.notes)}</p>` : ""}
+        </a>`
+              )
+              .join("")
+          : `<p class="empty">Одоогоор setup алга.</p>`
+      }
+    </div>`;
+}
+
+function renderSetupForm({ setupId }) {
+  const x = setupId ? state.setups.find((s) => s.id === setupId) : null;
+  if (setupId && !x) return go("#/setups");
+  $app.innerHTML = `
+    <a class="back" href="#/setups">← Setup-ууд</a>
+    <form id="setupItemForm" class="card form">
+      <h2>${x ? "Setup засах" : "Шинэ setup"}</h2>
+      <label>Нэр<input name="name" required value="${esc(x?.name || "")}" placeholder="Тулын spinning, зэвэгний fly..." /></label>
+      <label>Тайлбар<textarea name="notes" rows="10" placeholder="Саваа, ороогуур, шугам, лидер, өгөөш...">${esc(x?.notes || "")}</textarea></label>
+      <button class="primary big" type="submit">Хадгалах</button>
+      ${x ? `<button class="danger" type="button" data-action="deleteSetup" data-id="${esc(x.id)}">Setup устгах</button>` : ""}
+    </form>`;
+  $app.querySelector("#setupItemForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const setup = {
+      id: x?.id || uid(),
+      name: f.get("name").trim(),
+      notes: f.get("notes"),
+      createdAt: x?.createdAt || now(),
+      updatedAt: now(),
+      extra: x?.extra || {}
+    };
+    await mutate({ type: "upsertSetup", setup });
+    toast("Хадгаллаа");
+    go("#/setups");
+  });
+}
+
 function renderSettings() {
   const last = state.lastSync ? new Date(state.lastSync).toLocaleString("mn-MN") : "хэзээ ч";
   $app.innerHTML = `
@@ -679,6 +760,12 @@ document.addEventListener("click", async (e) => {
     await mutate({ type: "deleteTrip", id: t.id, trashPhotos: t.catches.flatMap((c) => c.photos) });
     toast("Устгалаа");
     go("#/");
+  } else if (action === "deleteSetup") {
+    const x = state.setups.find((s) => s.id === btn.dataset.id);
+    if (!x || !confirm(`"${x.name}" setup-ийг устгах уу?`)) return;
+    await mutate({ type: "deleteSetup", id: x.id });
+    toast("Устгалаа");
+    go("#/setups");
   } else if (action === "deleteCatch") {
     const t = findTrip(btn.dataset.trip);
     const c = t?.catches.find((x) => x.id === btn.dataset.id);
@@ -711,6 +798,7 @@ document.addEventListener("visibilitychange", () => {
 
 async function boot() {
   state.trips = sortTrips((await kv.get("trips")) || []);
+  state.setups = sortSetups((await kv.get("setups")) || []);
   state.queue = (await kv.get("queue")) || [];
   state.lastSync = (await kv.get("lastSync")) || 0;
 

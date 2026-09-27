@@ -166,3 +166,48 @@ export function applyOp(trips, op) {
   }
   return sortTrips(trips);
 }
+
+// ---------- setups (setups.csv) ----------
+
+export const SETUP_COLS = ["setup_id", "name", "notes", "createdAt", "updatedAt"];
+
+export function parseSetups(text) {
+  const { header, rows } = parseCSV(text);
+  const extras = header.filter((h) => h && !SETUP_COLS.includes(h));
+  return sortSetups(
+    rows.map((row) => ({
+      id: row.setup_id || uid(),
+      name: row.name || "",
+      notes: row.notes || "",
+      createdAt: row.createdAt || "",
+      updatedAt: row.updatedAt || "",
+      extra: pick(row, extras)
+    }))
+  );
+}
+
+export function sortSetups(setups) {
+  return setups.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "") || a.name.localeCompare(b.name));
+}
+
+export function serializeSetups(setups) {
+  const extras = [...new Set(setups.flatMap((s) => Object.keys(s.extra || {})))];
+  const rows = [...setups]
+    .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))
+    .map((s) => ({ ...s.extra, setup_id: s.id, name: s.name, notes: s.notes, createdAt: s.createdAt, updatedAt: s.updatedAt }));
+  return toCSV([...SETUP_COLS, ...extras], rows);
+}
+
+export const isSetupOp = (op) => op.type === "upsertSetup" || op.type === "deleteSetup";
+
+export function applySetupOp(setups, op) {
+  if (op.type === "upsertSetup") {
+    const i = setups.findIndex((s) => s.id === op.setup.id);
+    if (i >= 0) setups[i] = { ...setups[i], ...op.setup };
+    else setups.push({ ...op.setup });
+  } else if (op.type === "deleteSetup") {
+    const i = setups.findIndex((s) => s.id === op.id);
+    if (i >= 0) setups.splice(i, 1);
+  }
+  return sortSetups(setups);
+}

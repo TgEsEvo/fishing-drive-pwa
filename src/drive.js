@@ -119,7 +119,8 @@ export class GoogleDrive {
     }
     this.files = {
       trips: byName("trips.csv")?.id || null,
-      catches: byName("catches.csv")?.id || null
+      catches: byName("catches.csv")?.id || null,
+      setups: byName("setups.csv")?.id || null
     };
     this.photosFolder = files.find((f) => f.name === "photos" && f.mimeType === FOLDER_MIME)?.id || null;
     return this.files;
@@ -196,7 +197,7 @@ export class MockDrive {
         const r = await fetch(p).catch(() => null);
         return r && r.ok ? r.text() : "";
       };
-      this.save({ "trips.csv": await get("mock/trips.csv"), "catches.csv": await get("mock/catches.csv"), photos: {} });
+      this.save({ "trips.csv": await get("mock/trips.csv"), "catches.csv": await get("mock/catches.csv"), "setups.csv": await get("mock/setups.csv"), photos: {} });
     }
   }
   async signIn() {
@@ -207,7 +208,7 @@ export class MockDrive {
   }
   async locate() {
     this.check();
-    this.files = { trips: "trips.csv", catches: "catches.csv" };
+    this.files = { trips: "trips.csv", catches: "catches.csv", setups: "setups.csv" };
     return this.files;
   }
   async readText(id) {

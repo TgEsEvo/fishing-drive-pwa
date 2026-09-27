@@ -230,3 +230,24 @@ h3 { font-size: 1.05rem; }
   .trip-card { grid-template-columns: 1fr; }
   .thumb { display: none; }
 }
+
+.stat-link {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.stat-link span { font-weight: 600; font-size: 0.9rem; opacity: 0.85; }
+.stat-link strong { grid-row: span 2; font-size: 1.8rem; }
+.stat-link em { font-style: normal; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.setup-list { display: grid; gap: 12px; margin-top: 16px; }
+.setup-card { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; color: var(--muted); }
+.stats .stat-link span { color: #fff; opacity: 0.85; }
+.form input, .form textarea, .search input { color: var(--ink); font-weight: 400; }
