@@ -1,5 +1,5 @@
 // App-shell cache so the app opens offline. Drive/Google requests always go to the network.
-const CACHE = "fishing-drive-v6";
+const CACHE = "fishing-drive-v7";
 const SHELL = [
   "./",
   "index.html",
@@ -34,7 +34,8 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || url.origin !== location.origin) return;
   // network first (fresh code when online), cache fallback when offline
   event.respondWith(
-    fetch(event.request)
+    // no-cache: always revalidate with GitHub Pages so a new deploy shows up on the next open
+    fetch(event.request, { cache: "no-cache" })
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(event.request, copy));
